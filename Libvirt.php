@@ -51,7 +51,7 @@ class Libvirt {
 
     /**
      *
-     *	runCommand 执行 Shell 命令
+     *	runCommand 执行系统命令
      *
      *	@param $data	需要执行的命令
      *
@@ -252,7 +252,7 @@ class Libvirt {
         }
         return $this->runCommand("virsh define {$xmlfile}");
     }
-    
+
     /**
      * delete 完全删除指定虚拟机
      *
@@ -346,13 +346,21 @@ class Libvirt {
      *	@param $network_name	网卡名称
      *	@param $network_mac		网卡 MAC 地址
      *	@param $network_bridge	网卡桥接名称
-     *	@param $bandwidth_in	限制下行最大速率（0为不限制）
+     *	@param $bandwidth_in	限制下行最大速率（0为不限制）(Kib)
      *	@param $bandwidth_out	限制上行最大速率（0为不限制）
      *	@param $vnc_port		VNC 远程连接端口
      *
      */
-    public function createVMXML($server, $vcpu, $memory, $disk = "", $dataDisk = "" ,$iso = "", $boot = "hd", $network_type = "network", $network_name = "default", $network_mac = "", $network_bridge = "", $bandwidth_in = 0, $bandwidth_out = 0, $vnc_port = -1, $vnc_passwd, $uuid) {
-        $vCores=round($vcpu/2);
+    public function createVMXML($server, $vcpu, $memory, $disk = "", $dataDisk = "" ,$iso = "", $boot = "hd", $network_type = "network", $network_name = "default", $network_mac = "", $network_bridge = "", $bandwidth_in = 0, $bandwidth_out = 0, $vnc_port = -1, $vnc_passwd, $uuid = "") {
+        if (empty($uuid)) {
+            $chars = md5(uniqid(mt_rand(), true));
+            $uuid = substr($chars,0,8) . '-';
+            $uuid .= substr($chars,8,4) . '-';
+            $uuid .= substr($chars,12,4) . '-';
+            $uuid .= substr($chars,16,4) . '-';
+            $uuid .= substr($chars,20,12);
+        }
+        $vCores = round($vcpu/2);
         // 直接拼凑XML
         $template = "<domain type='kvm' id='0'>
     <name>{$server}</name>
@@ -513,12 +521,13 @@ class Libvirt {
      * @param int $vncp 目标CPU核心
      * @param float $memory 目标内存大小(KiB)
      * @param $disk 目标磁盘大小
+     * 如有则扩容，如没有则新建，数据盘不支持缩容
      * @param $network 目标带宽(Kib)
      */
-    public function changeMachine($server,$vcpu,$memory,$disk = 0,$network = 10) {
+    public function changeMachine($server,$vcpu,$memory,$disk = 0,$network = 0) {
         $orginXML = $this->dumpxml($server);
         $newXML = preg_replace("/placement='static'>([0-9\:]+)</","placement='static'>".intval($vcpu)."<",$orginXML);
-        $vCores=round($vcpu/2);
+        $vCores = round($vcpu/2);
         $newXML = preg_replace("/sockets='2' cores='([0-9\:]+)'/","sockets='2' cores='".$vCores."'",$newXML);
         //修改CPU核心
         $newXML = preg_replace("/<memory unit='KiB'>([0-9\:]+)</","<memory unit='KiB'>".floatval($memory)."<",$newXML);
@@ -746,9 +755,9 @@ class Libvirt {
             }
             $s++;
         }
-        $ips=array();
-        foreach($data as $ip)
-            $ips[]=explode("/",$ip['IP'])[0];
+        $ips = array();
+        foreach ($data as $ip)
+        $ips[] = explode("/",$ip['IP'])[0];
         return $ips;
     }
 
